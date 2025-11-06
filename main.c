@@ -1,12 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-enum act {ACT_ERR, ACT_ADD=1, ACT_RM, ACT_LIST, ACT_EXIT};
+#define FILENAME "estoque.txt"
+#define MAXNAME 512
+
+#if defined(__WIN32__) || defined(__WIN64__)
+# define NEWLINE "\r\n" /* Handling windows bs */
+#else
+# define NEWLINE "\n"
+#endif
+
+enum act {ACT_ERR=-1, ACT_ADD=1, ACT_RM, ACT_LIST, ACT_EXIT};
+struct item {
+	char *name;
+	unsigned am;
+};
 
 static void banner(void) __attribute__((nothrow, cold));
 static enum act getact(void) __attribute__((nothrow));
 static int again(void) __attribute__((nothrow));
 static void exit_program(void) __attribute__((nothrow, noreturn));
+static void panic(const char *str) __attribute__((nothrow, nonnull, noreturn));
+static int add_item(void) __attribute__((nothrow));
 
 int main(void)
 {
@@ -14,7 +30,12 @@ int main(void)
 
 	banner();
 	while (1) {
-		if ((act = getact()) == ACT_ERR) {
+		switch ((act = getact())) {
+		case ACT_ADD:
+			if (add_item() == -1)
+				panic("add_item()");
+			break;
+		default:
 			fputs("Opção inválida! Tente novamente.\n", stdout);
 			continue;
 		}
@@ -53,7 +74,8 @@ static int again(void)
 
 	while (1) {
 		fputs("Deseja realizar outra operação? (s/n): ", stdout);
-		scanf("%c", &ret); getchar();
+		scanf("%c", &ret);
+		getchar();
 		if (ret == 's' || ret == 'S' || ret == 'n' || ret == 'N')
 			return ret == 's' || ret == 'S';
 	}
@@ -63,5 +85,40 @@ static void exit_program(void)
 {
 	fputs("Obrigado por usar o Controle de Estoques! Até a próxima.\n", stdout);
 	exit(EXIT_SUCCESS);
+	__builtin_unreachable();
+}
+
+static int add_item(void)
+{
+	struct item it;
+	FILE *fp;
+
+	if (!(it.name = malloc(MAXNAME * sizeof(*it.name))))
+		return -1;
+	if (!(fp = fopen(FILENAME, "a"))) {
+		free(it.name);
+		return -1;
+	}
+
+	fputs("Digite o nome do item: ", stdout);
+	fgets(it.name, MAXNAME, stdin);
+	it.name[strcspn(it.name, "\n")] = '\0';
+
+	fputs("Digite a quantidade: ",	stdout);
+	scanf("%u", &it.am);
+	getchar();
+
+	fprintf(fp, "%s" NEWLINE "%u" NEWLINE, it.name, it.am);
+	fputs("Item adicionado com sucesso!\n", stdout);
+
+	free(it.name);
+	fclose(fp);
+	return 0;
+}
+
+static void panic(const char *str)
+{
+	fprintf(stderr, "PANIC: %s\n", str);
+	exit(EXIT_FAILURE);
 	__builtin_unreachable();
 }
