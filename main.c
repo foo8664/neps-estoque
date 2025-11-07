@@ -49,6 +49,8 @@ int main(void)
 			if (rm_all() == -1)
 				panic("rm_all()");
 			break;
+		case ACT_EXIT:
+			exit_program();
 		default:
 			fputs("Opção inválida! Tente novamente.\n", stdout);
 			continue;
