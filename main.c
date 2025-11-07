@@ -187,6 +187,10 @@ static int list_all(void)
 	}
 	ungetc(ch, fp);
 
+	fputs("=============================\n",	stdout);
+	fputs("        Estoque Atual\n",		stdout);
+	fputs("=============================\n",	stdout);
+
 	while ((it = getitem(fp)) && !feof(fp)) {
 		printf("Nome: %s\nQuantidade: %u\n\n", it->name, it->am);
 		free(it->name);
@@ -279,15 +283,14 @@ static int rm_all(void)
 		if (its[i]->am > targ.am) {
 			fputs("Quantidade atualizada com sucesso!\n", stdout);
 			its[i]->am -= targ.am;
+			fprintf(fp, "%s\n%u\n", its[i]->name, its[i]->am);
 		} else if (targ.am == its[i]->am) {
 			fputs("Item removido do estoque!\n", stdout);
-			its[i]->am = 0;
 		} else {
 			printf(	"Estoque insuficiente. Quantidade disponível: "
 				"%u\n", its[i]->am);
+			fprintf(fp, "%s\n%u\n", its[i]->name, its[i]->am);
 		}
-
-		fprintf(fp, "%s\n%u\n", its[i]->name, its[i]->am);
 	}
 
 	if (!found)
