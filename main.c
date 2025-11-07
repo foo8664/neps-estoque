@@ -23,6 +23,9 @@ static int again(void) __attribute__((nothrow));
 static void exit_program(void) __attribute__((nothrow, noreturn));
 static void panic(const char *str) __attribute__((nothrow, nonnull, noreturn));
 static int add_item(void) __attribute__((nothrow));
+static struct item *getitem(FILE *fp) __attribute__((nothrow, nonnull,
+	malloc(free, 1)));
+static int list_all(void) __attribute__((nothrow));
 
 int main(void)
 {
@@ -34,6 +37,10 @@ int main(void)
 		case ACT_ADD:
 			if (add_item() == -1)
 				panic("add_item()");
+			break;
+		case ACT_LIST:
+			if (list_all() == -1)
+				panic("list_all()");
 			break;
 		default:
 			fputs("Opção inválida! Tente novamente.\n", stdout);
@@ -121,4 +128,61 @@ static void panic(const char *str)
 	fprintf(stderr, "PANIC: %s\n", str);
 	exit(EXIT_FAILURE);
 	__builtin_unreachable();
+}
+
+static struct item *getitem(FILE *fp)
+{
+	struct item *it;
+	char *tmpname;
+
+	if (!(it = malloc(sizeof(*it))))
+		return NULL;
+	if (!(it->name = malloc(MAXNAME * sizeof(it->name)))) {
+		free(it);
+		return NULL;
+	}
+
+	if (!fgets(it->name, MAXNAME, fp) || fscanf(fp, "%u", &it->am) != 1) {
+		free(it->name);
+		free(it);
+		return NULL;
+	}
+	it->name[strcspn(it->name, "\n")] = '\0';
+	fgetc(fp);
+
+	if (!(tmpname = realloc(it->name, (strlen(it->name) + 1) *
+			sizeof(*it->name)))) {
+		free(it);
+		return NULL;
+	}
+
+	it->name = tmpname;
+	return it;
+}
+
+static int list_all(void)
+{
+	struct item *it;
+	FILE *fp;
+	int ch;
+
+	if (!(fp = fopen(FILENAME, "r")))
+		return -1;
+
+	ch = fgetc(fp);
+	if (feof(fp)) {
+		fputs("O estoque esta vazio\n", stdout);
+		fclose(fp);
+		return 0;
+	}
+	ungetc(ch, fp);
+
+	while ((it = getitem(fp)) && !feof(fp)) {
+		printf("Nome: %s\nQuantidade: %u\n\n", it->name, it->am);
+		free(it->name);
+		free(it);
+	}
+
+	fclose(fp);
+	return 0;
 }
