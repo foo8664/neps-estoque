@@ -26,6 +26,9 @@ static int add_item(void) __attribute__((nothrow));
 static struct item *getitem(FILE *fp) __attribute__((nothrow, nonnull,
 	malloc(free, 1)));
 static int list_all(void) __attribute__((nothrow));
+static inline void free_all(size_t n, struct item *arr[n]) __attribute__((nothrow,
+	nonnull_if_nonzero(2, 1)));
+static int rm_all(void) __attribute__((nothrow));
 
 int main(void)
 {
@@ -41,6 +44,10 @@ int main(void)
 		case ACT_LIST:
 			if (list_all() == -1)
 				panic("list_all()");
+			break;
+		case ACT_RM:
+			if (rm_all() == -1)
+				panic("rm_all()");
 			break;
 		default:
 			fputs("Opção inválida! Tente novamente.\n", stdout);
@@ -152,6 +159,7 @@ static struct item *getitem(FILE *fp)
 
 	if (!(tmpname = realloc(it->name, (strlen(it->name) + 1) *
 			sizeof(*it->name)))) {
+		free(it->name);
 		free(it);
 		return NULL;
 	}
@@ -185,4 +193,115 @@ static int list_all(void)
 
 	fclose(fp);
 	return 0;
+}
+
+static int rm_all(void)
+{
+	struct item targ;
+	struct item **its;
+	struct item **tmp;
+	FILE *fp;
+	size_t n;
+	size_t i;
+	int found;
+
+	if (!(fp = fopen(FILENAME, "r")))
+		return -1;
+	if (!(targ.name = malloc(MAXNAME * sizeof(*targ.name)))) {
+		fclose(fp);
+		return -1;
+	}
+
+	fputs("Digite o nome do item: ", stdout);
+	if (!fgets(targ.name, MAXNAME, stdin)) {
+		fclose(fp);
+		free(targ.name);
+		return -1;
+	}
+	fputs("Digite a quantidade a ser removida: ", stdout);
+	if (scanf("%u", &targ.am) != 1) {
+		fclose(fp);
+		free(targ.name);
+		return -1;
+	}
+	targ.name[strcspn(targ.name, "\n")] = '\0';
+	getchar();
+
+	if (!(its = malloc((n = 8) * sizeof(*its)))) {
+		fclose(fp);
+		free(targ.name);
+		return -1;
+	}
+
+	for (i = 0; !feof(fp); ++i) {
+		tmp = its;
+		if (i >= n && !(tmp = realloc(its, (n *= 2) * sizeof(*its)))) {
+			free_all(i, its);
+			free(its);
+			fclose(fp);
+			return -1;
+		}
+		its = tmp;
+
+		if (!(its[i] = getitem(fp))) {
+			if (feof(fp))
+				break;
+			free_all(i, its);
+			free(its);
+			fclose(fp);
+			return -1;
+		}
+	}
+
+	if (!(tmp = realloc(its, (n = i) * sizeof(*its)))) {
+		free_all(i, its);
+		free(its);
+		fclose(fp);
+		return -1;
+	}
+	its = tmp;
+
+	if (!(fp = freopen(FILENAME, "w", fp))) {
+		free_all(i, its);
+		free(its);
+		return -1;
+	}
+
+	for (i = 0, found = 0; i < n; ++i) {
+		if (strcmp(its[i]->name, targ.name)) {
+			fprintf(fp, "%s\n%u\n", its[i]->name, its[i]->am);
+			continue;
+		}
+
+		found = 1;
+		if (its[i]->am > targ.am) {
+			fputs("Quantidade atualizada com sucesso!\n", stdout);
+			its[i]->am -= targ.am;
+		} else if (targ.am == its[i]->am) {
+			fputs("Item removido do estoque!\n", stdout);
+			its[i]->am = 0;
+		} else {
+			printf(	"Estoque insuficiente. Quantidade disponível: "
+				"%u\n", its[i]->am);
+		}
+
+		fprintf(fp, "%s\n%u\n", its[i]->name, its[i]->am);
+	}
+
+	if (!found)
+		fputs("Item não encontrado.\n", stdout);
+	free_all(n, its);
+	free(its);
+	free(targ.name);
+	fclose(fp);
+	return 0;
+}
+
+static inline void free_all(size_t n, struct item *arr[n])
+{
+	size_t i;
+	for (i = 0; i < n; ++i) {
+		free(arr[i]->name);
+		free(arr[i]);
+	}
 }
